@@ -89,7 +89,8 @@ int sem_wait(int semId){
     }
 
     // We only want to wake up a single one.
-    while(_can_acquire(semId)){
+    while(!_can_acquire(semId)){
+        proc->chan = &semId;
         sleep(&semId, SEM_STORE[semId]->lock);
         // when sleep returns we have the lock again
     }
@@ -126,7 +127,7 @@ int sem_signal(int semId){
     release(SEM_STORE[semId]->lock);
 }
 
-
+/*
 proc->chan = chan;
 if proc.chan == chan:
     wake
@@ -138,3 +139,4 @@ sem_wait(sem_id){
 
     while not can take sem
 }
+*/
