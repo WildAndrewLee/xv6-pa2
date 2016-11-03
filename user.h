@@ -40,6 +40,7 @@ void free(void*);
 int atoi(const char*);
 
 // semaphore.c
+void _sem_init();
 int sem_init(int semId, int n);
 int sem_destory(int semId);
 int sem_wait(int semId);
