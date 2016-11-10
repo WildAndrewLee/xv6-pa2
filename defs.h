@@ -147,6 +147,7 @@ int             argstr(int, char**);
 int             fetchint(uint, int*);
 int             fetchstr(uint, char**);
 void            syscall(void);
+void            _sem_init();
 
 // timer.c
 void            timerinit(void);

@@ -10,9 +10,6 @@ char *argv[] = { "sh", 0 };
 int
 main(void)
 {
-  // Initialize global semaphore table.
-  _sem_init();
-
   int pid, wpid;
 
   if(open("console", O_RDWR) < 0){
