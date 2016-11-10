@@ -108,51 +108,59 @@ struct semaphore{
     int value;
     int max;
     int active;
-    struct spinlock* lock;
+    struct spinlock lock;
 };
 
 #define SEM_NUM 32
 
-struct semaphore* SEM_STORE[SEM_NUM];
+static struct semaphore SEM_STORE[SEM_NUM];
+
+void _sem_init(){
+    int n;
+
+    for(n = 0; n < SEM_NUM; n++){
+        struct semaphore sem;
+        sem.value = sem.max = sem.active = 0;
+        
+        char lock_name[6];
+        lock_name[0] = 's';
+        lock_name[1] = 'e';
+        lock_name[2] = 'm';
+        lock_name[3] = (char) (n / 10);
+        lock_name[4] = (char) (n % 10);
+        lock_name[5] = '\0';
+
+        struct spinlock lock;
+        initlock(&lock, lock_name);
+
+        sem.lock = lock;
+        SEM_STORE[n] = sem;
+    }
+}
 
 int sys_sem_init(void){
     int semId;
     int n;
 
-    argint(1, &semId);
-    argint(2, &n);
+    argint(0, &semId);
+    argint(1, &n);
 
     if(semId < 0 || semId >= SEM_NUM){
         // cprintf("Attempted to initialize semaphore with invalid ID %d.\n", semId);
         return -1;
     }
 
-    if(!SEM_STORE[semId]){
-        struct semaphore sem;
-        sem.value = sem.max = sem.active = 0;
-        
-        char lock_name[3];
-        lock_name[0] = (char) (n / 10);
-        lock_name[1] = (char) (n % 10);
-        lock_name[2] = '\0';
+    acquire(&SEM_STORE[semId].lock);
 
-        struct spinlock lock;
-        initlock(&lock, lock_name);
-
-        sem.lock = &lock;
-        SEM_STORE[semId] = &sem;
-    }
-
-    acquire(SEM_STORE[semId]->lock);
-
-    if(SEM_STORE[semId] && SEM_STORE[semId]->active){
+    if(SEM_STORE[semId].active){
+        release(&SEM_STORE[semId].lock);
         return -1;
     }
 
-    SEM_STORE[semId]->value = SEM_STORE[semId]->max = n;
-    SEM_STORE[semId]->active = 1;
+    SEM_STORE[semId].value = SEM_STORE[semId].max = n;
+    SEM_STORE[semId].active = 1;
 
-    release(SEM_STORE[semId]->lock);
+    release(&SEM_STORE[semId].lock);
 
     return semId;
 }
@@ -160,19 +168,22 @@ int sys_sem_init(void){
 int sys_sem_destroy(void){
     int semId;
 
-    argint(1, &semId);
+    argint(0, &semId);
 
     if(semId < 0 || semId >= SEM_NUM){
         return -1;
     }
 
-    acquire(SEM_STORE[semId]->lock);
+    acquire(&SEM_STORE[semId].lock);
 
-    if(!SEM_STORE[semId] || !SEM_STORE[semId]->active){
+    if(!SEM_STORE[semId].active){
+        release(&SEM_STORE[semId].lock);
         return -1;
     }
 
-    SEM_STORE[semId]->active = 0;
+    SEM_STORE[semId].active = 0;
+
+    release(&SEM_STORE[semId].lock);
 
     return semId;
 }
@@ -180,11 +191,11 @@ int sys_sem_destroy(void){
 // WARNING: ASSUMES YOU ALREADY HAVE A LOCK.
 int _can_acquire(int semId){
     // Somebody messed up.
-    if(!SEM_STORE[semId] || !SEM_STORE[semId]->active){
+    if(!SEM_STORE[semId].active){
         panic("_can_acquire");
     }
 
-    int current_value = SEM_STORE[semId]->value;
+    int current_value = SEM_STORE[semId].value;
 
     return current_value > 0;
 }
@@ -192,28 +203,29 @@ int _can_acquire(int semId){
 int sys_sem_wait(void){
     int semId;
 
-    argint(1, &semId);
+    argint(0, &semId);
 
     if(semId < 0 || semId >= SEM_NUM){
         return -1;
     }
 
-    acquire(SEM_STORE[semId]->lock);
+    acquire(&SEM_STORE[semId].lock);
 
-    if(!SEM_STORE[semId] || !SEM_STORE[semId]->active){
+    if(!SEM_STORE[semId].active){
+        release(&SEM_STORE[semId].lock);
         return -1;
     }
 
     // We only want to wake up a single one.
     while(!_can_acquire(semId)){
-        proc->chan = &semId;
-        sleep(&semId, SEM_STORE[semId]->lock);
+        proc->chan = &SEM_STORE[semId];
+        sleep(&SEM_STORE[semId], &SEM_STORE[semId].lock);
         // when sleep returns we have the lock again
     }
 
-    SEM_STORE[semId]->value--;
+    SEM_STORE[semId].value--;
 
-    release(SEM_STORE[semId]->lock);
+    release(&SEM_STORE[semId].lock);
 
     // semaphore is good (y)
 
@@ -223,28 +235,30 @@ int sys_sem_wait(void){
 int sys_sem_signal(void){
     int semId;
 
-    argint(1, &semId);
+    argint(0, &semId);
 
     if(semId < 0 || semId >= SEM_NUM){
         return -1;
     }
 
-    acquire(SEM_STORE[semId]->lock);
+    acquire(&SEM_STORE[semId].lock);
 
-    if(!SEM_STORE[semId] || !SEM_STORE[semId]->active){
+    if(!SEM_STORE[semId].active){
+        release(&SEM_STORE[semId].lock);
         return -1;
     }
 
-    if(SEM_STORE[semId]->value == SEM_STORE[semId]->max){
+    if(SEM_STORE[semId].value == SEM_STORE[semId].max){
+        release(&SEM_STORE[semId].lock);
         return -1;
     }
 
     // It should be safe to acquire this since if we're calling
     // this we probably got past sem_wait.
-    SEM_STORE[semId]->value++;
-    wakeup(&semId);
+    SEM_STORE[semId].value++;
+    wakeup(&SEM_STORE[semId]);
 
-    release(SEM_STORE[semId]->lock);
+    release(&SEM_STORE[semId].lock);
 
     return 0;
 }

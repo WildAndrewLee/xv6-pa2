@@ -149,6 +149,9 @@ int             fetchstr(uint, char**);
 void            syscall(void);
 void            _sem_init();
 
+// sysproc.c
+void _sem_init();
+
 // timer.c
 void            timerinit(void);
 
