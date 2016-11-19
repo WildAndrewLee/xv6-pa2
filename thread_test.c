@@ -13,6 +13,7 @@ uint g_counter;
 void *thread(void *arg)
 {
 	int i;
+	printf(1, "JUST ENTERING THREAD %d: started...\n", *(int*)arg);
 	int counter;
 
 	sleep(10);
@@ -29,7 +30,7 @@ void *thread(void *arg)
 
 		sem_signal(SEMAPHORE_NUM);
 	}
-
+	cprintf("Preparing to texit thread\n");
 	texit(arg);
 	return 0;
 }

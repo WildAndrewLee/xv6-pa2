@@ -43,3 +43,7 @@ int sem_init(int semId, int n);
 int sem_destroy(int semId);
 int sem_wait(int semId);
 int sem_signal(int semId);
+
+int clone(void *(*func) (void *), void *arg, void *stack);
+int join(int pid, void **stack, void **retval);
+void texit(void *retval);

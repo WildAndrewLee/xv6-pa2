@@ -338,7 +338,6 @@ int sys_clone(void *(*func) (void *), void *arg, void *stack)
      return -1;
    }
    
-   cprintf("Succeeded in allocating proccess\n");
 
    // Copy process state from p.
    if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
@@ -348,7 +347,6 @@ int sys_clone(void *(*func) (void *), void *arg, void *stack)
      np->state = UNUSED;
      return -1;
    }
-   cprintf("Successfully copied process state from p\n");
    np->sz = proc->sz;
    np->parent = proc;
    *np->tf = *proc->tf;
@@ -368,35 +366,11 @@ int sys_clone(void *(*func) (void *), void *arg, void *stack)
    acquire(&ptable.lock);
    np->state = RUNNABLE;
    release(&ptable.lock);
-
-
-   // Store the function on top of the stack
-   // Keep a copy of the original function
-
-   //uint oldEsp = np->tf->eip;
-
-   np->tf->eip = (uint)stack;
-
-   uint userStack = (uint)stack;
-   //uint oldEip = np->tf->eip;
-
-   // Remember to keep track of esp so that we 
-   // execute the next instruction: esp + 4
-   //
-   // Store at esp
-
-   np->kstack[userStack - 4] = (int)func;
-   np->kstack[userStack - 8] = (int)arg;
-  
-   np->tf->eip = np->kstack[userStack-4];
-
-   cprintf("Location of eip %d\n", np->tf->eip);
  
-   //np->kstack[esp] = np->tf->eip;
-   //np->kstack[esp - 4] = (int)arg;
-
-
-   cprintf("PID from clone: %d\n", pid);
+   // Executing function from function pointer
+   func(arg);
+ 
+   cprintf("PID from clone: %d\n, pid");
    return pid;
 
 }
@@ -404,7 +378,7 @@ int sys_clone(void *(*func) (void *), void *arg, void *stack)
 
 int sys_join(int pid, void **stack, void **retval)
 {
-        cprintf("----- Starting join --------\n");
+
   	struct proc *p;
 	int havekids = 0;
 
@@ -420,7 +394,6 @@ int sys_join(int pid, void **stack, void **retval)
 
 		havekids = 0;
 		for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-		      //cprintf("For loop for join\n");
 		      if(p->parent != proc)
 				continue;
 		      havekids = 1;
@@ -441,14 +414,13 @@ int sys_join(int pid, void **stack, void **retval)
 			cprintf("ESP is %d\n", esp);
 			stack = (void**) esp;
 			 
-		
+
 
 			return 0;
 		      }
 		    }
 
 		if(!havekids || proc->killed){
-		  cprintf("Don't have kids || proc was killed\n");
 		  release(&ptable.lock);
 	          return -1;
 	        }

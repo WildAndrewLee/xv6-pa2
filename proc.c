@@ -463,3 +463,166 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+
+// Implementing threads below
+int clone(void *(*func) (void *), void *arg, void *stack)
+{
+  cprintf("Starting clone\n");
+  int i, pid;
+  struct proc *np;
+  cprintf("preparing to allocate process\n");
+  // Allocate process.
+  if((np = allocproc()) == 0){
+    cprintf("Failure to allocate process\n");
+    return -1;
+  }
+  // Copy process state from p.
+  if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
+    cprintf("Failure to copy process state from p\n");
+    kfree(np->kstack);
+    np->kstack = 0;
+    np->state = UNUSED;
+    return -1;
+  }
+
+  cprintf("Bypassed all return -1's\n");
+  np->sz = proc->sz;
+  np->parent = proc;
+  *np->tf = *proc->tf;
+
+  // Clear %eax so that fork returns 0 in the child.
+  np->tf->eax = 0;
+
+  for(i = 0; i < NOFILE; i++)
+    if(proc->ofile[i])
+      np->ofile[i] = filedup(proc->ofile[i]);
+  np->cwd = idup(proc->cwd);
+
+  safestrcpy(np->name, proc->name, sizeof(proc->name));
+ 
+  pid = np->pid;
+
+  // lock to force the compiler to emit the np->state write last.
+  acquire(&ptable.lock);
+  np->state = RUNNABLE;
+  release(&ptable.lock);
+
+  // Executing function from function pointer
+  func(arg);
+
+  cprintf("PID from clone: %d\n, pid"); 
+  return pid;
+}
+
+
+// wait for block until something exits
+int join(int pid, void **stack, void **retval)
+{
+	cprintf("Starting join\n");
+  	struct proc *p;
+	int havekids = 0;
+
+
+  	acquire(&ptable.lock);
+
+	// Sleeping
+	for(;;)
+	{
+
+		cprintf("pid: %d\n", pid);
+		
+		    // Scan through table looking for zombie children.
+		    havekids = 0;
+		    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+		      if(p->parent != proc)
+			continue;
+		      havekids = 1;
+		      if(p->state == ZOMBIE){
+			// Found one.
+			pid = p->pid;
+			kfree(p->kstack);
+			p->kstack = 0;
+			freevm(p->pgdir);
+			p->state = UNUSED;
+			p->pid = 0;
+			p->parent = 0;
+			p->name[0] = 0;
+			p->killed = 0;
+			release(&ptable.lock);
+
+			// Copy thread's stack address and return value
+			
+			// Get original ESP address
+			uint esp = proc->tf->esp;
+
+			cprintf("ESP is %d\n", esp);
+			//cprintf("ESP is %d\n", proc->tf->eip);
+
+			stack = (void**) esp;
+			 
+
+
+			return 0;
+		      }
+		    }
+
+
+
+		// No point waiting if we don't have any children.
+		if(!havekids || proc->killed){
+		  release(&ptable.lock);
+	          return -1;
+	        }
+
+  		sleep(proc, &ptable.lock);  //DOC: wait-sleep
+
+	} 
+
+}
+
+
+
+// modify proc table with return value
+// match pid
+void texit(void *retval)
+{
+  cprintf("Starting texit\n");
+  struct proc *p;
+  int fd;
+
+  if(proc == initproc)
+    panic("init exiting");
+
+  // Close all open files.
+  for(fd = 0; fd < NOFILE; fd++){
+    if(proc->ofile[fd]){
+      fileclose(proc->ofile[fd]);
+      proc->ofile[fd] = 0;
+    }
+  }
+
+  begin_op();
+  iput(proc->cwd);
+  end_op();
+  proc->cwd = 0;
+
+  acquire(&ptable.lock);
+
+  // Parent might be sleeping in wait().
+  wakeup1(proc->parent);
+
+  // Pass abandoned children to init.
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->parent == proc){
+      p->parent = initproc;
+      if(p->state == ZOMBIE)
+        wakeup1(initproc);
+    }
+  }
+
+  // Jump into the scheduler, never to return.
+  proc->state = ZOMBIE;
+  sched();
+  panic("zombie exit");
+}

@@ -373,29 +373,34 @@ int sys_clone(void *(*func) (void *), void *arg, void *stack)
    // Store the function on top of the stack
    // Keep a copy of the original function
 
-   //uint oldEsp = np->tf->eip;
-
-   np->tf->eip = (uint)stack;
-
-   uint userStack = (uint)stack;
-   //uint oldEip = np->tf->eip;
+   uint userEsp = (uint)stack;
+   uint oldEip = np->tf->eip;
 
    // Remember to keep track of esp so that we 
    // execute the next instruction: esp + 4
    //
    // Store at esp
 
-   np->kstack[userStack - 4] = (int)func;
-   np->kstack[userStack - 8] = (int)arg;
+   stack = (int)func;
+   stack[userEsp + 4] = (int)arg;
   
-   np->tf->eip = np->kstack[userStack-4];
+   np->tf->eip = stack;
 
-   cprintf("Location of eip %d\n", np->tf->eip);
+
  
    //np->kstack[esp] = np->tf->eip;
    //np->kstack[esp - 4] = (int)arg;
 
 
+   cprintf("Function argument start\n");
+   // Executing function from function pointer
+   cprintf("Arg pointer %d\n",arg); 
+
+
+   //(*func)(arg);
+
+
+   cprintf("Function has ran!\n"); 
    cprintf("PID from clone: %d\n", pid);
    return pid;
 
