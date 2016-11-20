@@ -471,22 +471,18 @@ int clone(void *(*func) (void *), void *arg, void *stack)
   cprintf("Starting clone\n");
   int i, pid;
   struct proc *np;
-  cprintf("preparing to allocate process\n");
+
   // Allocate process.
-  if((np = allocproc()) == 0){
-    cprintf("Failure to allocate process\n");
+  if((np = allocproc()) == 0)
     return -1;
-  }
+
   // Copy process state from p.
   if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
-    cprintf("Failure to copy process state from p\n");
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
     return -1;
   }
-
-  cprintf("Bypassed all return -1's\n");
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;

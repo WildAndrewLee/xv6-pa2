@@ -13,7 +13,7 @@ uint g_counter;
 void *thread(void *arg)
 {
 	int i;
-	printf(1, "JUST ENTERING THREAD %d: started...\n", *(int*)arg);
+	printf(1, "{{{JUST ENTERING THREAD %d: started..}}}.\n", *(int*)arg);
 	int counter;
 
 	sleep(10);
@@ -30,7 +30,8 @@ void *thread(void *arg)
 
 		sem_signal(SEMAPHORE_NUM);
 	}
-	cprintf("Preparing to texit thread\n");
+	//printf(1, "Preparing to texit thread %d \n", *(int*)arg);
+        printf(1,"thread: g_counter: %d\n", g_counter);
 	texit(arg);
 	return 0;
 }
@@ -93,6 +94,8 @@ int main(int argc, char **argv)
 		pid[i] = clone(thread, args[i], stacks[i]);
 		printf(1, "main: created thread with pid %d\n", pid[i]);
 	}
+
+        //printf(1, "Number of g_counter: %d\n", g_counter);
 	
 	// Wait for all children
 	for (i=0; i<NUM_THREADS; i++) {

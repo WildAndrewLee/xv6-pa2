@@ -331,24 +331,24 @@ int sys_clone(void *(*func) (void *), void *arg, void *stack)
    struct proc *np;
 
    
-   cprintf("Preparing to start sys_clone\n");
+   //cprintf("Preparing to start sys_clone\n");
    // Allocate process.
    if((np = allocproc()) == 0){
-     cprintf("Failure to allocate process\n");
+     //cprintf("Failure to allocate process\n");
      return -1;
    }
    
-   cprintf("Succeeded in allocating proccess\n");
+   //cprintf("Succeeded in allocating proccess\n");
 
    // Copy process state from p.
    if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
-     cprintf("Return -1 for process state from p\n");
+     //cprintf("Return -1 for process state from p\n");
      kfree(np->kstack);
      np->kstack = 0;
      np->state = UNUSED;
      return -1;
    }
-   cprintf("Successfully copied process state from p\n");
+   //cprintf("Successfully copied process state from p\n");
    np->sz = proc->sz;
    np->parent = proc;
    *np->tf = *proc->tf;
@@ -375,20 +375,27 @@ int sys_clone(void *(*func) (void *), void *arg, void *stack)
 
    //uint oldEsp = np->tf->eip;
 
-   np->tf->eip = (uint)stack;
 
-   uint userStack = (uint)stack;
-   //uint oldEip = np->tf->eip;
+
 
    // Remember to keep track of esp so that we 
    // execute the next instruction: esp + 4
    //
    // Store at esp
 
+   //np->tf->eip = (uint)stack;
+
+   uint userStack = (uint)stack;
+   //uint oldEip = np->tf->eip;
+
+
    np->kstack[userStack - 4] = (int)func;
    np->kstack[userStack - 8] = (int)arg;
   
    np->tf->eip = np->kstack[userStack-4];
+   //np->tf->esp = np->kstack[userStack-8];
+
+   //np->tf->eip = (int)func;
 
    cprintf("Location of eip %d\n", np->tf->eip);
  
@@ -396,7 +403,8 @@ int sys_clone(void *(*func) (void *), void *arg, void *stack)
    //np->kstack[esp - 4] = (int)arg;
 
 
-   cprintf("PID from clone: %d\n", pid);
+   //cprintf("PID from clone: %d\n", pid);
+   //cprintf("Proc from clone: %d\n", np->parent);
    return pid;
 
 }
@@ -436,10 +444,27 @@ int sys_join(int pid, void **stack, void **retval)
 			p->killed = 0;
 			release(&ptable.lock);
 
-			uint esp = proc->tf->esp;
+			//uint esp = proc->tf->esp;
 
-			cprintf("ESP is %d\n", esp);
-			stack = (void**) esp;
+			cprintf("EIP is %d\n", proc->tf->eip);
+
+			
+			//np->tf->eip = (uint)stack;
+
+
+			stack = (void*)p->tf->esp;
+			retval = (void*) p;
+			//uint userStack = (uint)stack;
+
+
+			cprintf("join: eip %d\n", stack);
+
+		        //np->kstack[userStack - 4] = (int)func;
+			//np->kstack[userStack - 8] = (int)arg;
+			  
+			//np->tf->eip = np->kstack[userStack-4];
+			//np->tf->esp = np->kstack[userStack-8];
+			
 			 
 		
 
@@ -452,10 +477,10 @@ int sys_join(int pid, void **stack, void **retval)
 		  release(&ptable.lock);
 	          return -1;
 	        }
-
   		sleep(proc, &ptable.lock);  //DOC: wait-sleep
-
-	} 
+		cprintf("Finished sleeping\n");
+	}
+        cprintf("join: Exiting joing\n"); 
 
 }
 
@@ -472,6 +497,8 @@ void sys_texit(void *retval)
   struct proc *p;
   int fd;
 
+  cprintf("Starting texit!\n");
+
   if(proc == initproc)
     panic("init exiting");
 
@@ -482,17 +509,26 @@ void sys_texit(void *retval)
       proc->ofile[fd] = 0;
     }
   }
+  //cprintf("texit: Closed all open files\n");
+
 
   begin_op();
   iput(proc->cwd);
   end_op();
   proc->cwd = 0;
 
+
+  //cprintf("texit: Arrived at acquire lock\n");
   acquire(&ptable.lock);
 
+  cprintf("texit: Trying to wake up proc->parent\n");
+  cprintf("proc->parent %d\n", proc->parent);
   // Parent might be sleeping in wait().
   wakeup(proc->parent);
+  cprintf("texit: Woke up something\n");
+  
 
+  acquire(&ptable.lock);
   // Pass abandoned children to init.
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->parent == proc){
