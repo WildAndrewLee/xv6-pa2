@@ -452,10 +452,10 @@ int sys_join(int pid, void **stack, void **retval)
 			//np->tf->eip = (uint)stack;
 
 
-			stack = (void*)p->tf->esp;
-			retval = (void*) p;
 			//uint userStack = (uint)stack;
 
+	 		stack = (void*)p->tf->esp;
+			retval = (void*) p;
 
 			cprintf("join: eip %d\n", stack);
 
